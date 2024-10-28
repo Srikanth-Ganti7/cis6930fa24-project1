@@ -8,6 +8,7 @@ from nltk.corpus import wordnet
 import nltk
 
 
+
 def get_arguments():
     parser = argparse.ArgumentParser(description="Redact sensitive information from text files")
     parser.add_argument('--input', required=True, action='append', help="Input file(s), supports glob patterns")
@@ -22,7 +23,7 @@ def get_arguments():
 
 
 def load_spacy_model():
-    nlp = spacy.load('en_core_web_sm')
+    nlp = spacy.load('en_core_web_md')
     return nlp
 
 nltk.download('wordnet')
@@ -48,7 +49,6 @@ def get_synonyms(word):
 
     print(f"Synonyms for '{word}': {', '.join(synonym_set)}")  # Debugging output to show synonyms
     return synonym_set
-
 
 
 def redact_addresses(text):
@@ -95,21 +95,73 @@ def redact_addresses(text):
 
 
 
-
-
-
-
 def redact_names(doc, redacted_addresses):
     redacted_text = doc.text  # Get the full text as a string
-    name_count = 0  # Counter for the number of redactions
+    name_count = 0  # Counter for the number of successful redactions
+    emails_to_redact = []
 
+    # Load the SpaCy NLP model
+    nlp = load_spacy_model()
+
+    # List to store identified entities for debugging purposes
+    identified_entities = []
+
+    # Create a SpaCy doc for the entire text
+    doc = nlp(redacted_text)
+
+    # Iterate over all entities to identify names
     for ent in doc.ents:
-        if ent.label_ == "PERSON" and ent.text not in redacted_addresses:  # Only redact names, not addresses
-            name_count += 1
-            # Use regex to replace the name with redaction character '█'
-            redacted_text = re.sub(r'\b{}\b'.format(re.escape(ent.text)), '█' * len(ent.text), redacted_text)
+        # Add identified entity for debugging
+        identified_entities.append((ent.text, ent.label_))
 
-    return redacted_text, name_count  # Return redacted text and count of names redacted
+        # Only redact names (PERSON label) that are not addresses
+        if ent.label_ == "PERSON" and ent.text.lower() != "email" and ent.text.lower() not in redacted_addresses:
+            # Additional filtering to exclude address-like entities
+            entity_text = ent.text.replace('\n', ' ').strip()
+
+            # Create a regex pattern to redact the entity
+            name_pattern = re.compile(re.escape(entity_text), re.IGNORECASE | re.MULTILINE)
+            updated_text, replacements = name_pattern.subn(lambda match: '█' * len(match.group()), redacted_text)
+
+            # Only update if there were successful replacements
+            if replacements > 0:
+                redacted_text = updated_text
+                name_count += replacements
+
+    # Debug: Print all identified entities with their labels
+    #print(f"Identified entities by SpaCy: {identified_entities}")
+
+    # Handle salutations like "Dear [Name]"
+    salutation_pattern = re.compile(r'\b(?:Dear|Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Z][a-z]+)\b')
+    salutation_matches = salutation_pattern.findall(redacted_text)
+    for match in salutation_matches:
+        # Replace the name found after the salutation with redacted characters
+        updated_text, replacements = re.subn(r'\b{}\b'.format(re.escape(match)), '█' * len(match), redacted_text)
+        if replacements > 0:
+            redacted_text = updated_text
+            name_count += replacements
+
+    # Identify and redact all email addresses in the text
+    email_pattern = re.compile(r'\b[\w\.-]+@[\w\.-]+\.\w+\b')
+    emails = email_pattern.findall(redacted_text)
+    for email in emails:
+        emails_to_redact.append(email)
+
+    # Redact all identified emails
+    for email in emails_to_redact:
+        # Replace the exact email match with redaction characters
+        updated_text, replacements = re.subn(re.escape(email), '█' * len(email), redacted_text)
+        if replacements > 0:
+            redacted_text = updated_text
+            name_count += replacements
+
+    # Return redacted text and the count of names plus emails redacted
+    return redacted_text, name_count
+
+
+
+
+
 
 
 
@@ -130,13 +182,15 @@ def redact_dates(text):
         r'|(?:\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s\d{2,4})?)'
         # Matches month-day without year (e.g., Dec 5th)
         r'|(?:\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)\s\d{1,2}(?:th|rd|st|nd)?)'
+        # Matches full dates with day of the week (e.g., Wed, 6 Feb 2002)
+        r'|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}'
         r')\b',
         re.IGNORECASE
     )
     
     # Debugging to check which dates are being matched
     matches = date_pattern.findall(text)
-    #print(f"Dates found: {matches}")
+    print(f"Dates found: {matches}")
 
     # Replace matched dates with redacted characters
     redacted_text = date_pattern.sub(lambda x: '█' * len(x.group()), text)
@@ -145,15 +199,23 @@ def redact_dates(text):
 
 
 
+
 def redact_phone_numbers(text):
-    phone_pattern = re.compile(r'\(?\b[2-9][0-9]{2}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b')
+    # Regex pattern to match various US phone number formats
+    phone_pattern = re.compile(
+        r'(?:(?:\+1\s?)?\(?\d{3}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}\b'
+    )
+    # Substitute redacted characters for matched phone numbers
     redacted_text = phone_pattern.sub(lambda x: '█' * len(x.group()), text)
     return redacted_text, len(phone_pattern.findall(text))
+
+
 
 
 def redact_concept_sentences(text, concepts):
     sentences = re.split(r'(?<=[.!?])', text)  # Splitting text at full stops while keeping them
     redacted_sentences = []
+    concept_count = 0
 
     # Collect all synonyms for each concept
     concept_synonyms = set()
@@ -171,10 +233,11 @@ def redact_concept_sentences(text, concepts):
         
         if should_redact:
             redacted_sentences.append('█' * len(sentence))
+            concept_count += 1
         else:
             redacted_sentences.append(sentence)
     
-    return ''.join(redacted_sentences)
+    return ''.join(redacted_sentences), concept_count
 
 
 def process_files(files, output_dir, args):
@@ -213,8 +276,9 @@ def process_files(files, output_dir, args):
 
             # Redact concept sentences (work on the latest text)
             if args.concept:
-                redacted_text = redact_concept_sentences(redacted_text, args.concept)
-
+                redacted_text, concept_count = redact_concept_sentences(redacted_text, args.concept)
+                file_stats['CONCEPT'] = concept_count
+                
             # Write the redacted content to the output file
             output_filename = os.path.splitext(os.path.basename(file))[0] + ".censored"
             output_file = os.path.join(output_dir, output_filename)
