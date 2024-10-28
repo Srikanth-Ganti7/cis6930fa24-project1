@@ -1,0 +1,7 @@
+Redaction Statistics:
+
+File: input.txt
+  PERSON: 1
+  DATE: 0
+  PHONE: 0
+  GPE: 0
