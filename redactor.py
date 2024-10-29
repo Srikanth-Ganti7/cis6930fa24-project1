@@ -278,7 +278,7 @@ def process_files(files, output_dir, args):
             if args.concept:
                 redacted_text, concept_count = redact_concept_sentences(redacted_text, args.concept)
                 file_stats['CONCEPT'] = concept_count
-                
+
             # Write the redacted content to the output file
             output_filename = os.path.splitext(os.path.basename(file))[0] + ".censored"
             output_file = os.path.join(output_dir, output_filename)
@@ -301,24 +301,27 @@ def process_files(files, output_dir, args):
 
 
 
-def output_statistics(stats, stats_output):
+def output_statistics(stats, stats_output, output_dir):
     if not stats:
         print("No statistics to output.")
         return
-    
+
     stats_text = "Redaction Statistics:\n"
     for file, data in stats.items():
         stats_text += f"\nFile: {file}\n"
         for key, value in data.items():
             stats_text += f"  {key}: {value}\n"
 
+    # Always print statistics to terminal
+    print(stats_text)
+
+    # If --stats is set to 'stderr', save to 'stats.txt' in the output folder
     if stats_output == 'stderr':
-        print(stats_text, file=sys.stderr)
-    elif stats_output == 'stdout':
-        print(stats_text)
-    else:
-        with open(stats_output, 'w') as f:
+        stats_file = os.path.join(output_dir, 'stats.txt')
+        with open(stats_file, 'w') as f:
             f.write(stats_text)
+        print(f"Statistics also saved to {stats_file}")
+
 
 
 def main():
@@ -336,8 +339,8 @@ def main():
     # Process the files
     stats = process_files(files, args.output, args)
 
-    # Output statistics
-    output_statistics(stats, args.stats)
+    # Output statistics in the specified output directory
+    output_statistics(stats, args.stats, args.output)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,4 @@
+Redaction Statistics:
+
+File: input4.txt
+  PHONE: 4
