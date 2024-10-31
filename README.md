@@ -35,6 +35,14 @@ pipenv run python redactor.py --input '*.txt' --names --address --dates --phones
 
 The script will process the files, redact specified types of information, and save the results in the specified output directory. Redaction statistics will be displayed in the console and saved to stats.txt if --stats is set to stderr.
 
+### Video
+
+Demo Video:
+
+https://github.com/user-attachments/assets/9230ea53-9517-4f5e-bda6-48a3afbb91cc
+
+
+
 ## Expected output
 
 ### stats output example
