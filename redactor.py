@@ -10,15 +10,15 @@ import nltk
 
 
 def get_arguments():
-    parser = argparse.ArgumentParser(description="Redact sensitive information from text files")
-    parser.add_argument('--input', required=True, action='append', help="Input file(s), supports glob patterns")
-    parser.add_argument('--output', required=True, help="Directory to store redacted files")
-    parser.add_argument('--names', action='store_true', help="Redact names")
-    parser.add_argument('--dates', action='store_true', help="Redact dates")
-    parser.add_argument('--phones', action='store_true', help="Redact phone numbers")
-    parser.add_argument('--address', action='store_true', help="Redact addresses")
-    parser.add_argument('--concept', action='append', help="Redact sentences related to concept(s)")
-    parser.add_argument('--stats', required=True, help="Output statistics (stderr, stdout, or file)")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input', required=True, action='append')
+    parser.add_argument('--output', required=True)
+    parser.add_argument('--names', action='store_true')
+    parser.add_argument('--dates', action='store_true')
+    parser.add_argument('--phones', action='store_true')
+    parser.add_argument('--address', action='store_true' )
+    parser.add_argument('--concept', action='append' )
+    parser.add_argument('--stats', required=True  )
     return parser.parse_args()
 
 
@@ -63,7 +63,7 @@ def redact_addresses(text):
 
     # Finding all matches for debugging purposes
     matches = address_pattern.findall(text)
-    print(f"Addresses found: {matches}")
+    #print(f"Addresses found: {matches}")
 
     # Replace each matched address with the redaction character
     redacted_text = text
@@ -83,7 +83,7 @@ def redact_addresses(text):
             # Use regex to replace the location with redaction character '█'
             redacted_text = re.sub(r'\b{}\b'.format(re.escape(ent.text)), '█' * len(ent.text), redacted_text)
 
-    print(f"Addresses found (SpaCy): {spacy_matches}")
+    #print(f"Addresses found (SpaCy): {spacy_matches}")
 
     total_count = len(matches) + location_count
 
@@ -190,7 +190,7 @@ def redact_dates(text):
     
     # Debugging to check which dates are being matched
     matches = date_pattern.findall(text)
-    print(f"Dates found: {matches}")
+    #print(f"Dates found: {matches}")
 
     # Replace matched dates with redacted characters
     redacted_text = date_pattern.sub(lambda x: '█' * len(x.group()), text)

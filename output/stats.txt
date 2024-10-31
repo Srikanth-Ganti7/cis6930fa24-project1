@@ -1,4 +1,8 @@
 Redaction Statistics:
 
 File: input4.txt
+  ADDRESS: 4
+  PERSON: 57
+  DATE: 9
   PHONE: 4
+  CONCEPT: 0
